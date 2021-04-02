@@ -246,5 +246,5 @@ def main():
 
 
 if __name__ == "__main__":
-    # main()
-    download_pdfs("papers-3.csv", "code/test_papers")
+    main()
+    #download_pdfs("papers-3.csv", "code/test_papers")
