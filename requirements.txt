@@ -1,0 +1,10 @@
+colorama==0.4.4
+pandas==1.2.3
+termcolor==1.1.0
+Scrapy==2.4.1
+tqdm==4.59.0
+qspider==0.1.6
+numpy==1.20.2
+requests==2.25.1
+beautifulsoup4==4.9.3
+python crawler.py -f papers.csv -o test_papers --download_pdf

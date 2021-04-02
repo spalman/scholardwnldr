@@ -1,0 +1,6 @@
+http://sci-hub.se
+https://sci-hub.se
+http://sci-hub.st
+https://sci-hub.st
+http://sci-hub.do
+https://sci-hub.do
