@@ -185,8 +185,8 @@ class SciHub(object):
         else:
             pdf = self.find_pdf_in_html(res.text)
 
-        self.download_pdf(pdf)
-        return pdf["title"] + ".pdf"
+        title = self.download_pdf(pdf)
+        return title
 
     def find_pdf_in_html(self, html):
         """Find pdf url and title in a scihub html
@@ -280,7 +280,7 @@ class SciHub(object):
                     end="",
                 )
         print("\n" + STD_INFO + "Done.".ljust(50))
-        return pdf["title"] + ".pdf"
+        return pdf["title"].strip() + ".pdf"
 
     def is_captcha_page(self, res):
         """Check if the result page is a captcha page."""
