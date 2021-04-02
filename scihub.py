@@ -280,7 +280,8 @@ class SciHub(object):
                     end="",
                 )
         print("\n" + STD_INFO + "Done.".ljust(50))
-        return pdf["title"].strip() + ".pdf"
+        title = " ".join(pdf["title"].replace("\n", "").split())
+        return title + ".pdf"
 
     def is_captcha_page(self, res):
         """Check if the result page is a captcha page."""

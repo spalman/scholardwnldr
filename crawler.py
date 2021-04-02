@@ -164,7 +164,7 @@ def download_pdfs(csv_file, out_path="papers"):
                 )
             success = False
             DOI = row["doi"]
-            if str(row["filename"]).endswith(".pdf"):
+            if len(str(row["filename"])) > 5:
                 continue
             if row["link"].endswith(".pdf"):
                 pdf_obj = {"pdf_url": row["link"], "title": row["title"]}
