@@ -265,7 +265,7 @@ class SciHub(object):
             int(res.headers["Content-Length"]) if "Content-Length" in res.headers else 0
         )
         if tot_size == 0:
-            return None
+            return "Captcha"
         out_file_path = os.path.join(self.out, pdf["title"] + ".pdf")
         downl_size = 0
         with open(out_file_path, "wb") as f:
