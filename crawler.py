@@ -78,6 +78,8 @@ def get_doi(csv_file):
     excel_file = path.splitext(csv_file)[0] + ".xlsx"
     if "doi" not in df.columns:
         df["doi"] = ""
+    if df.doi.dtype != "object":
+        df["doi"] = df["doi"].astype("object")
     last_dump = datetime.now()
     try:
         for index, row in tq.tqdm(df.iterrows()):
@@ -174,7 +176,9 @@ def download_pdfs(csv_file, out_path="papers"):
                 except:
                     print(
                         STD_INFO
-                        + "Falied to download pdf directly from \t{}".format(row["url"])
+                        + "Falied to download pdf directly from \t{}".format(
+                            row["link"]
+                        )
                     )
             if DOI == "Not found":
                 continue
@@ -242,5 +246,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
-    # download_pdfs("code/papers.csv", "code/test_papers")
+    # main()
+    download_pdfs("papers-3.csv", "code/test_papers")
