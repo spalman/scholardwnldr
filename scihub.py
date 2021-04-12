@@ -10,9 +10,21 @@ from qspider import ThreadManager, Task
 from termcolor import colored
 from colorama import init
 from scholar.configs import API_KEY
+import logging
 
 init()
 
+log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+logger = logging.getLogger(__name__)
+
+# To override the default severity of logging
+logger.setLevel("INFO")
+
+# Use FileHandler() to log to a file
+file_handler = logging.FileHandler("crawler_logs.log")
+formatter = logging.Formatter(log_format)
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
 LETTERS = list(string.ascii_lowercase)
 STD_INFO = colored("[INFO] ", "green")
 STD_ERROR = colored("[ERROR] ", "red")
@@ -41,7 +53,8 @@ PROXIES = {
 
 def update_link(mod="c"):
     LINK_FILE = open(get_resource_path("link.txt"), "w", encoding="utf-8")
-    print(STD_INFO + "Updating links ...")
+    logger.info("Updating links ...")
+    logger.info("Updating links ...")
     PATTERN = r">(htt[^:]+://sci-hub.[^</]+)<"
     if mod == "c":
         # method 1: crawl the website.
@@ -52,7 +65,6 @@ def update_link(mod="c"):
         available_links = re.findall(PATTERN, html)
         for link in available_links:
             if link[-3:] != "fun":
-                print(STD_INFO + "%s" % (link))
                 LINK_FILE.write(link + "\n")
     elif mod == "b":
         # method 2: brute force search
@@ -146,7 +158,7 @@ class SciHub(object):
             scihub_url_index = 0
             while True:
                 if scihub_url_index >= len(self.scihub_url_list):
-                    print(STD_WARNING + "All Scihub links are invalid.")
+                    logger.info("All Scihub links are invalid")
                     self.update_link(mod="c")
                     self.download()
 
@@ -154,9 +166,8 @@ class SciHub(object):
                 scihub_paper_url = "%s/%s" % (self.scihub_url, str(self.doi))
                 res = self.sess.get(scihub_paper_url, stream=True, verify=False)
                 if res.text in ["\n", ""] or res.status_code in [429, 404]:
-                    print(
-                        STD_ERROR
-                        + "Current Scihub link is invalid, changing another link..."
+                    logger.debug(
+                        "Current Scihub link is invalid, changing another link..."
                     )
                     scihub_url_index += 1
                 else:
@@ -172,16 +183,8 @@ class SciHub(object):
             or res.headers["Content-Type"] == "application/pdf"
         ):
             pdf = {"pdf_url": scihub_paper_url, "title": self.check_title(self.doi)}
-            print(
-                STD_INFO
-                + colored("PDF url", attrs=["bold"])
-                + " -> \n\t%s" % (pdf["pdf_url"])
-            )
-            print(
-                STD_INFO
-                + colored("Article title", attrs=["bold"])
-                + " -> \n\t%s" % (pdf["title"])
-            )
+            logger.info("PDF url -> \n\t%s" % (pdf["pdf_url"]))
+            logger.info("Article title -> \n\t%s" % (pdf["title"]))
         else:
             pdf = self.find_pdf_in_html(res.text)
 
@@ -211,16 +214,8 @@ class SciHub(object):
         )[0]
         title = title if title else pdf["pdf_url"].split("/")[-1].split(".pdf")[0]
         pdf["title"] = self.check_title(title)
-        print(
-            STD_INFO
-            + colored("PDF url", attrs=["bold"])
-            + " -> \n\t%s" % (pdf["pdf_url"])
-        )
-        print(
-            STD_INFO
-            + colored("Article title", attrs=["bold"])
-            + " -> \n\t%s" % (pdf["title"])
-        )
+        logger.info("PDF url -> \n\t%s", pdf["pdf_url"])
+        logger.info("Article title -> \n\t%s", pdf["title"])
         return pdf
 
     def check_title(self, title):
@@ -249,6 +244,7 @@ class SciHub(object):
         while True:
             if self.is_captcha_page(res):
                 print(STD_INFO + "Captcha is required.")
+                logger.info("Captcha is required")
                 res.close()
                 return "Captcha"
             else:

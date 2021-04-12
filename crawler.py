@@ -12,8 +12,30 @@ from termcolor import colored
 from colorama import init
 from scihub import *
 from scholar.configs import DUMP_FREQ
+import logging
 
 init()
+LOG_FILENAME = "crawler_logs.log"
+
+
+def setup_logger(log_path):
+    log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    logger = logging.getLogger(__name__)
+
+    logger.setLevel("INFO")
+    # Use FileHandler() to log to a file
+    # Add the log message handler to the logger
+    log_file = path.join(log_path, LOG_FILENAME)
+    file_handler = logging.FileHandler(log_file)
+    rotation_handler = logging.handlers.RotatingFileHandler(
+        log_file, maxBytes=100000, backupCount=2
+    )
+    logger.addHandler(rotation_handler)
+    formatter = logging.Formatter(log_format)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    return logger
+
 
 STD_INFO = colored("[INFO] ", "green")
 STD_ERROR = colored("[ERROR] ", "red")
@@ -53,13 +75,25 @@ def find_doi(content, url):
         Returns DOI if found, "Not found" otherwise.
     """
     soup = BeautifulSoup(content, "lxml")
-    a = soup.find("a", {"href": re.compile(r"doi.org")})
+    a = soup.find("a", {"href": re.compile(r"doi.org", flags=re.IGNORECASE)})
+
     if a:
         return a["href"]
 
-    else:
-        print(STD_INFO + "%s \t doi not found" % (url))
-        return "Not found"
+    a = soup.body.find_all(
+        text=re.compile(
+            r"10.\d{4,9}\/[-._;()\/:A-Z0-9]+", flags=re.IGNORECASE + re.MULTILINE
+        )
+    )
+
+    if a:
+        if len(a[0]) < 100:
+            return re.sub(r"^.*?10", "10", a[0], flags=re.DOTALL).strip()
+
+        return re.sub(r"^.*?10", "10", a[1], flags=re.DOTALL).strip()
+
+    logger.info("%s \t doi not found", url)
+    return "Not found"
 
 
 def get_doi(csv_file):
@@ -89,15 +123,9 @@ def get_doi(csv_file):
                 df.to_csv(csv_file, index=False)
                 df.to_excel(excel_file)
                 last_dump = datetime.now()
-                print(
-                    STD_INFO
-                    + "{}: Changes saved {} {}".format(
-                        last_dump.strftime("%Y-%m-%d %H:%M"), csv_file, excel_file
-                    )
-                )
-                print(
-                    STD_INFO
-                    + "Links crawled: {}/{} {:.2f}%".format(
+                logger.info("Changes saved {} {}".format(csv_file, excel_file))
+                logger.info(
+                    "Links crawled: {}/{} {:.2f}%".format(
                         index, df_size, (index + 1) / df_size * 100
                     )
                 )
@@ -106,14 +134,14 @@ def get_doi(csv_file):
 
             if len(str(row["doi"])) > 5:
                 continue
-            if url.endswith(".pdf"):
+            if url.endswith("pdf") or "download" in url:
                 continue  # do not search doi on direct pdf links
             try:
                 response = requests.get(url, headers=random.choice(HEADERS), timeout=10)
                 item = find_doi(response.content, url)
             except:
-                print(STD_INFO + "%s \t failed to access url." % (url))
-                item = "Not found"
+                logger.info("%s \t failed to access url.", url)
+                item = ""
             df.at[index, "doi"] = item
 
     finally:
@@ -152,15 +180,9 @@ def download_pdfs(csv_file, out_path="papers"):
                 df.to_csv(csv_file, index=False)
                 df.to_excel(excel_file)
                 last_dump = datetime.now()
-                print(
-                    STD_INFO
-                    + "{}: Changes saved {} {}".format(
-                        last_dump.strftime("%Y-%m-%d %H:%M"), csv_file, excel_file
-                    )
-                )
-                print(
-                    STD_INFO
-                    + "DOIs crawled: {}/{} {:.2f}".format(
+                logger.info("Changes saved {} {}".format(csv_file, excel_file))
+                logger.info(
+                    "DOIs crawled: {}/{} {:.2f}".format(
                         index, df_size, (index + 1) / df_size * 100
                     )
                 )
@@ -168,17 +190,14 @@ def download_pdfs(csv_file, out_path="papers"):
             DOI = row["doi"]
             if len(str(row["filename"])) > 5:
                 continue
-            if row["link"].endswith(".pdf"):
+            if row["link"].endswith("pdf") or "download" in row["link"]:
                 pdf_obj = {"pdf_url": row["link"], "title": row["title"]}
                 try:
                     pdf = SciHub(DOI, out).download_pdf(pdf_obj)
                     df.at[index, "filename"] = pdf + ".pdf"
                 except:
-                    print(
-                        STD_INFO
-                        + "Falied to download pdf directly from \t{}".format(
-                            row["link"]
-                        )
+                    logger.info(
+                        "Falied to download pdf directly from \t{}".format(row["link"])
                     )
             if DOI == "Not found":
                 continue
@@ -191,7 +210,7 @@ def download_pdfs(csv_file, out_path="papers"):
                     pdf = SciHub(DOI, out).download(choose_scihub_url_index=url_index)
                     if not pdf:
                         pdf = "Not found at Sci-Hub"
-                        print(STD_INFO + "\t{} not found at Sci-Hub".format(DOI))
+                        logger.info("{} not found at Sci-Hub".format(DOI))
                         success = True
                     elif pdf == "Captcha":
                         raise ValueError("Captcha required")
@@ -199,7 +218,8 @@ def download_pdfs(csv_file, out_path="papers"):
                     df.at[index, "filename"] = pdf
                 except Exception as e1:
                     try:
-                        print(STD_ERROR + str(e1))
+                        logger.debug("%s", str(e1))
+
                         print(STD_INFO + "Retrying with proxy")
                         pdf = SciHub(DOI, out, proxy=True).download(
                             choose_scihub_url_index=url_index
@@ -207,28 +227,36 @@ def download_pdfs(csv_file, out_path="papers"):
                         df.at[index, "filename"] = pdf + ".pdf"
                         success = True
                     except Exception as e2:
-                        print(STD_ERROR + str(e2))
+                        logger.debug("%s", str(e2))
                         url_index += 1
-                        print(
-                            STD_INFO
-                            + "Falied to download \t{} from \t{}".format(
+                        logger.info(
+                            "Falied to download \t{} from \t{}".format(
                                 DOI, links[url_index]
                             )
                         )
             if not success:
-                print(
-                    STD_WARNING
-                    + "DOI: {} \t failed to download on any sci-hub mirror".format(DOI)
+                logger.info(
+                    "DOI: {} \t failed to download on any sci-hub mirror".format(DOI)
                 )
     except Exception as e:
-        print(e)
+        logger.debug("%s", e)
     finally:
         df.to_csv(csv_file, index=False)
         df.to_excel(excel_file)
 
 
-def main():
+def main(args):
     """Command line tool to crawl links to find DOI and download pdfs via DOI from Scihub."""
+
+    if args.search_doi:
+        logger.info("Crawling links...")
+        get_doi(args.file)
+    if args.download_pdf:
+        logger.info("Downloading pdfs...")
+        download_pdfs(args.file, args.out)
+
+
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         "Command line tool to crawl links to find DOI and download pdfs via DOI from Scihub."
     )
@@ -237,14 +265,7 @@ def main():
     parser.add_argument("-d", "--search_doi", action="store_true")
     parser.add_argument("-p", "--download_pdf", action="store_true")
     args = parser.parse_args()
-    if args.search_doi:
-        print(STD_INFO + "Crawling links...")
-        get_doi(args.file)
-    if args.download_pdf:
-        print(STD_INFO + "Downloading pdfs...")
-        download_pdfs(args.file, args.out)
+    logger = setup_logger(path.split(args.file)[0])
 
+    main(args)
 
-if __name__ == "__main__":
-    main()
-    #download_pdfs("papers-3.csv", "code/test_papers")
