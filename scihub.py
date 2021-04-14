@@ -14,17 +14,8 @@ import logging
 
 init()
 
-log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 logger = logging.getLogger(__name__)
 
-# To override the default severity of logging
-logger.setLevel("INFO")
-
-# Use FileHandler() to log to a file
-file_handler = logging.FileHandler("crawler_logs.log")
-formatter = logging.Formatter(log_format)
-file_handler.setFormatter(formatter)
-logger.addHandler(file_handler)
 LETTERS = list(string.ascii_lowercase)
 STD_INFO = colored("[INFO] ", "green")
 STD_ERROR = colored("[ERROR] ", "red")
@@ -53,7 +44,6 @@ PROXIES = {
 
 def update_link(mod="c"):
     LINK_FILE = open(get_resource_path("link.txt"), "w", encoding="utf-8")
-    logger.info("Updating links ...")
     logger.info("Updating links ...")
     PATTERN = r">(htt[^:]+://sci-hub.[^</]+)<"
     if mod == "c":
@@ -260,8 +250,6 @@ class SciHub(object):
         tot_size = (
             int(res.headers["Content-Length"]) if "Content-Length" in res.headers else 0
         )
-        if tot_size == 0:
-            return "Captcha"
         out_file_path = os.path.join(self.out, pdf["title"] + ".pdf")
         downl_size = 0
         with open(out_file_path, "wb") as f:
@@ -279,6 +267,7 @@ class SciHub(object):
                 )
         print("\n" + STD_INFO + "Done.".ljust(50))
         title = " ".join(pdf["title"].replace("\n", "").split())
+        logger.info("%s downloaded", title)
         return title + ".pdf"
 
     def is_captcha_page(self, res):

@@ -10,32 +10,13 @@ from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from termcolor import colored
 from colorama import init
-from scihub import *
+from scihub import SciHub, update_link, get_resource_path
 from scholar.configs import DUMP_FREQ
 import logging
 
 init()
 LOG_FILENAME = "crawler_logs.log"
-
-
-def setup_logger(log_path):
-    log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    logger = logging.getLogger(__name__)
-
-    logger.setLevel("INFO")
-    # Use FileHandler() to log to a file
-    # Add the log message handler to the logger
-    log_file = path.join(log_path, LOG_FILENAME)
-    file_handler = logging.FileHandler(log_file)
-    rotation_handler = logging.handlers.RotatingFileHandler(
-        log_file, maxBytes=100000, backupCount=2
-    )
-    logger.addHandler(rotation_handler)
-    formatter = logging.Formatter(log_format)
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-    return logger
-
+logger = logging.getLogger(__name__)
 
 STD_INFO = colored("[INFO] ", "green")
 STD_ERROR = colored("[ERROR] ", "red")
@@ -137,16 +118,17 @@ def get_doi(csv_file):
             if url.endswith("pdf") or "download" in url:
                 continue  # do not search doi on direct pdf links
             try:
-                response = requests.get(url, headers=random.choice(HEADERS), timeout=10)
+                response = requests.get(url, headers=random.choice(HEADERS), timeout=20)
                 item = find_doi(response.content, url)
             except:
                 logger.info("%s \t failed to access url.", url)
                 item = ""
             df.at[index, "doi"] = item
-
+        logger.info("Successfully fishined crawling DOIs!")
     finally:
         df.to_csv(csv_file, index=False)
         df.to_excel(excel_file)
+        logger.info("Changes saved {} {}".format(csv_file, excel_file))
 
 
 def download_pdfs(csv_file, out_path="papers"):
@@ -194,11 +176,16 @@ def download_pdfs(csv_file, out_path="papers"):
                 pdf_obj = {"pdf_url": row["link"], "title": row["title"]}
                 try:
                     pdf = SciHub(DOI, out).download_pdf(pdf_obj)
-                    df.at[index, "filename"] = pdf + ".pdf"
-                except:
+                    if pdf is "Captcha" or not pdf:
+                        raise ValueError("Captcha required")
+                    df.at[index, "filename"] = pdf
+                    continue
+                except Exception as e:
                     logger.info(
                         "Falied to download pdf directly from \t{}".format(row["link"])
                     )
+                    logger.debug(str(e))
+                    continue
             if DOI == "Not found":
                 continue
             if not DOI:
@@ -238,11 +225,13 @@ def download_pdfs(csv_file, out_path="papers"):
                 logger.info(
                     "DOI: {} \t failed to download on any sci-hub mirror".format(DOI)
                 )
+        logger.info("Successfully finished downloading PDF files!")
     except Exception as e:
         logger.debug("%s", e)
     finally:
         df.to_csv(csv_file, index=False)
         df.to_excel(excel_file)
+        logger.info("Changes saved {} {}".format(csv_file, excel_file))
 
 
 def main(args):
@@ -265,7 +254,20 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--search_doi", action="store_true")
     parser.add_argument("-p", "--download_pdf", action="store_true")
     args = parser.parse_args()
-    logger = setup_logger(path.split(args.file)[0])
 
+    root = logging.getLogger()
+    log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    root.setLevel("INFO")
+    # Use FileHandler() to log to a file
+    # Add the log message handler to the logger
+    log_file = path.join(path.split(args.file)[0], LOG_FILENAME)
+    # file_handler = logging.FileHandler(log_file)
+    rotation_handler = logging.handlers.RotatingFileHandler(
+        log_file, maxBytes=1000000, backupCount=2
+    )
+    formatter = logging.Formatter(log_format)
+    rotation_handler.setFormatter(formatter)
+    root.addHandler(rotation_handler)
+    # logger.addHandler(file_handler)
     main(args)
 
