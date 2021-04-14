@@ -118,7 +118,7 @@ def get_doi(csv_file):
             if url.endswith("pdf") or "download" in url:
                 continue  # do not search doi on direct pdf links
             try:
-                response = requests.get(url, headers=random.choice(HEADERS), timeout=20)
+                response = requests.get(url, headers=random.choice(HEADERS), timeout=10)
                 item = find_doi(response.content, url)
             except:
                 logger.info("%s \t failed to access url.", url)
