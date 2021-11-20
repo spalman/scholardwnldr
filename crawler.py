@@ -5,7 +5,7 @@ import argparse
 import numpy as np
 import pandas as pd
 import requests
-import tqdm.notebook as tq
+from tqdm.auto import tqdm
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from termcolor import colored
@@ -13,6 +13,7 @@ from colorama import init
 from scihub import SciHub, update_link, get_resource_path
 from scholar.configs import DUMP_FREQ
 import logging
+from logging.handlers import RotatingFileHandler
 
 init()
 LOG_FILENAME = "crawler_logs.log"
@@ -97,7 +98,7 @@ def get_doi(csv_file):
         df["doi"] = df["doi"].astype("object")
     last_dump = datetime.now()
     try:
-        for index, row in tq.tqdm(df.iterrows()):
+        for index, row in tqdm(df.iterrows()):
 
             # dump
             if datetime.now() > last_dump + timedelta(minutes=DUMP_FREQ):
@@ -157,7 +158,7 @@ def download_pdfs(csv_file, out_path="papers"):
     df_size = len(df)
     excel_file = path.splitext(csv_file)[0] + ".xlsx"
     try:
-        for index, row in tq.tqdm(df.iterrows()):
+        for index, row in tqdm(df.iterrows()):
             if datetime.now() > last_dump + timedelta(minutes=DUMP_FREQ):
                 df.to_csv(csv_file, index=False)
                 df.to_excel(excel_file)
@@ -176,7 +177,7 @@ def download_pdfs(csv_file, out_path="papers"):
                 pdf_obj = {"pdf_url": row["link"], "title": row["title"]}
                 try:
                     pdf = SciHub(DOI, out).download_pdf(pdf_obj)
-                    if pdf is "Captcha" or not pdf:
+                    if pdf == "Captcha" or not pdf:
                         raise ValueError("Captcha required")
                     df.at[index, "filename"] = pdf
                     continue
@@ -249,8 +250,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         "Command line tool to crawl links to find DOI and download pdfs via DOI from Scihub."
     )
-    parser.add_argument("-f", "--file", help="cvs file with link")
-    parser.add_argument("-o", "--out", help="path to pdfs")
+    parser.add_argument(
+        "-f",
+        "--file",
+        help="cvs file with link",
+    )
+    parser.add_argument("-o", "--out", help="path to pdfs", default="pdfs")
     parser.add_argument("-d", "--search_doi", action="store_true")
     parser.add_argument("-p", "--download_pdf", action="store_true")
     args = parser.parse_args()
@@ -262,12 +267,9 @@ if __name__ == "__main__":
     # Add the log message handler to the logger
     log_file = path.join(path.split(args.file)[0], LOG_FILENAME)
     # file_handler = logging.FileHandler(log_file)
-    rotation_handler = logging.handlers.RotatingFileHandler(
-        log_file, maxBytes=1000000, backupCount=2
-    )
+    rotation_handler = RotatingFileHandler(log_file, maxBytes=1000000, backupCount=2)
     formatter = logging.Formatter(log_format)
     rotation_handler.setFormatter(formatter)
     root.addHandler(rotation_handler)
     # logger.addHandler(file_handler)
     main(args)
-
