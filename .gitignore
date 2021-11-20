@@ -1,2 +1,6 @@
 __pycache__/
 .vscode/
+env/
+*.csv
+*.xlsx
+*.log
